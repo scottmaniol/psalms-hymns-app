@@ -1,0 +1,118 @@
+
+export const FIRESTORE_RULES = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper to check if user is global admin
+    function isGlobalAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Users Profile Data
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      // Allow admins to upgrade users manually
+      allow update: if isGlobalAdmin();
+    }
+
+    // --- Stripe Extension Collections ---
+    
+    // Customers: Created by extension, read/write by user for checkout
+    // IMPORTANT: Admins must be able to read this to see subscription status
+    match /customers/{uid} {
+      allow read: if request.auth.uid == uid || isGlobalAdmin();
+
+      match /checkout_sessions/{id} {
+        allow read, write: if request.auth.uid == uid || isGlobalAdmin();
+      }
+      match /subscriptions/{id} {
+        allow read: if request.auth.uid == uid || isGlobalAdmin();
+      }
+      match /payments/{id} {
+        allow read: if request.auth.uid == uid || isGlobalAdmin();
+      }
+    }
+
+    // Products & Prices: Sync'd from Stripe by extension, read-only for app
+    match /products/{id} {
+      allow read: if true;
+
+      match /prices/{priceId} {
+        allow read: if true;
+      }
+
+      match /tax_rates/{taxRateId} {
+        allow read: if true;
+      }
+    }
+
+    // --- Application Collections ---
+
+    // Song Metadata Overrides (Fix for CSV Import/Export)
+    match /song_metadata/{id} {
+      allow read: if true;
+      allow write: if isGlobalAdmin();
+    }
+
+    // Playlists
+    match /playlists/{document=**} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        (resource.data.organizationId != null && 
+         (
+           get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.createdBy == request.auth.uid ||
+           request.auth.uid in get(/databases/$(database)/documents/organizations/$(resource.data.organizationId)).data.adminIds ||
+           isGlobalAdmin()
+         )
+        )
+      );
+    }
+
+    // Organizations
+    match /organizations/{docId} {
+      allow read, create, update: if request.auth != null;
+      allow delete: if request.auth != null && (resource.data.createdBy == request.auth.uid || isGlobalAdmin());
+    }
+
+    // Planning Center Connections (Premium Only)
+    match /planning_center_connections/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isGlobalAdmin();
+    }
+
+    // Planning Center Service Mappings
+    match /pc_service_mappings/{mappingId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (
+        resource.data.userId == request.auth.uid || isGlobalAdmin()
+      );
+    }
+
+    // Cache Collection (for hymnal data)
+    match /_cache/{docId} {
+      allow read: if true;
+      allow write: if false; // Only Cloud Functions can write
+    }
+
+    // Analytics Events
+    match /analytics_events/{eventId} {
+      allow create: if true; // Allow anyone to log events (public/anon tracking)
+      allow read: if isGlobalAdmin(); // Only admins can read analytics
+    }
+  }
+}`;
+
+export const STORAGE_RULES = `rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}`;

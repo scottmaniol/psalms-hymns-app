@@ -1,0 +1,40 @@
+{
+  "short_name": "Psalms & Hymns",
+  "name": "Psalms & Hymns to the Living God",
+  "icons": [
+    {
+      "src": "https://firebasestorage.googleapis.com/v0/b/psalms-and-hymns-85ee4.firebasestorage.app/o/data%2FMacLogo.png?alt=media",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "https://firebasestorage.googleapis.com/v0/b/psalms-and-hymns-85ee4.firebasestorage.app/o/data%2FMacLogo.png?alt=media",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    },
+    {
+      "src": "https://firebasestorage.googleapis.com/v0/b/psalms-and-hymns-85ee4.firebasestorage.app/o/data%2FMacLogo.png?alt=media",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "https://firebasestorage.googleapis.com/v0/b/psalms-and-hymns-85ee4.firebasestorage.app/o/data%2FMacLogo.png?alt=media",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "https://firebasestorage.googleapis.com/v0/b/psalms-and-hymns-85ee4.firebasestorage.app/o/data%2FMacLogo.png?alt=media",
+      "type": "image/png",
+      "sizes": "1024x1024",
+      "purpose": "any"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#5ba1d5",
+  "background_color": "#ffffff"
+}

@@ -1,0 +1,20 @@
+export const HYMN_THEMES = [
+  "Psalm",
+  "Revelation and Adoration",
+  "Repentance and Faith",
+  "Advent",
+  "Incarnation",
+  "Earthly Ministry",
+  "Suffering and Death",
+  "Resurrection and Exaltation",
+  "The Holy Spirit",
+  "Salvation",
+  "God's Word",
+  "Submission and Profession",
+  "Prayer",
+  "Communion",
+  "The Church",
+  "Commission",
+  "Comfort, Death, and Glory",
+  "Benediction"
+];

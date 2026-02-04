@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#5ba1d5" />
+    
+    <!-- iOS PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Psalms & Hymns">
+
+    <title>Psalms & Hymns to the Living God</title>
+    
+    <!-- PWA Manifest (Versioned to force refresh) -->
+    <link rel="manifest" href="/manifest.json?v=17" />
+
+    <!-- Favicon (Main Logo) -->
+    <link 
+      rel="icon" 
+      type="image/png" 
+      href="https://firebasestorage.googleapis.com/v0/b/psalms-and-hymns-85ee4.firebasestorage.app/o/data%2FPHLG_logo_favicon.png?alt=media" 
+    />
+
+    <!-- Apple Touch Icon (Mobile Install Logo) -->
+    <link 
+      rel="apple-touch-icon" 
+      href="https://firebasestorage.googleapis.com/v0/b/psalms-and-hymns-85ee4.firebasestorage.app/o/data%2FMacLogo.png?alt=media" 
+    />
+
+    <!-- Google Cast SDK -->
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              indigo: {
+                50: '#f2f9fd',
+                100: '#e3f2fb',
+                200: '#bfdef5',
+                300: '#94c7ed',
+                400: '#6ab0e4',
+                500: '#5ba1d5', /* Base match for consistency if used elsewhere */
+                600: '#5ba1d5', /* Primary Accent */
+                700: '#4a8bc2',
+                800: '#3b76af',
+                900: '#2e5f96',
+                950: '#1d3d62',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
+    "tone": "https://aistudiocdn.com/tone@^14.7.77"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
