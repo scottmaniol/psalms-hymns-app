@@ -354,6 +354,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose, songDa
     }
   }, [isOpen, activeTab, users.length]);
 
+  // Sync selectedOrg with orgs array when it changes
+  useEffect(() => {
+    if (selectedOrg && orgs.length > 0) {
+      const updatedOrg = orgs.find(o => o.id === selectedOrg.id);
+      if (updatedOrg) {
+        setSelectedOrg(updatedOrg);
+      }
+    }
+  }, [orgs]);
+
   // Fetch Analytics
   useEffect(() => {
     if (isOpen && activeTab === 'analytics') {
