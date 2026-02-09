@@ -250,6 +250,12 @@ async function handleItemCreated(payload: any) {
   const db = admin.firestore();
   const itemData = payload.data;
   
+  // CRITICAL FIX: Check if this is a song item FIRST before doing any processing
+  if (itemData.type !== 'Item' || itemData.attributes?.item_type !== 'song') {
+    console.log('Skipping non-song item created:', itemData.attributes?.item_type);
+    return;
+  }
+  
   // Extract service ID from relationships
   const planId = itemData.relationships?.plan?.data?.id;
   
@@ -258,7 +264,7 @@ async function handleItemCreated(payload: any) {
     return;
   }
   
-  console.log('Handling item created for plan:', planId);
+  console.log('Handling song item created for plan:', planId);
   
   // Find the playlist mapping for this service
   const mappings = await db.collection('pc_service_mappings')
@@ -332,14 +338,21 @@ async function handleItemCreated(payload: any) {
     }
     
     try {
-      // Get connection for access token
-      const connectionDoc = await db.collection('planning_center_connections')
-        .doc(mapping.userId)
+      // CRITICAL FIX: Get connection for access token by querying userId field
+      const connectionSnapshot = await db.collection('planning_center_connections')
+        .where('userId', '==', mapping.userId)
+        .where('active', '==', true)
+        .limit(1)
         .get();
       
-      if (!connectionDoc.exists) continue;
+      if (connectionSnapshot.empty) {
+        console.log('No active connection found for user:', mapping.userId);
+        continue;
+      }
       
-      const connection = connectionDoc.data()!;
+      const connectionDoc = connectionSnapshot.docs[0];
+      
+      const connection = connectionDoc.data();
       const accessToken = decryptToken(connection.pcToken);
       
       // Parse token for Basic Auth
@@ -364,8 +377,9 @@ async function handleItemCreated(payload: any) {
       
       const pcSong: PCSong = itemResponse.data.data;
       
-      // Only process if it's a song
+      // Double-check it's a song (should be caught earlier, but being defensive)
       if (pcSong.type !== 'Item' || pcSong.attributes.item_type !== 'song') {
+        console.log('Item is not a song, skipping');
         continue;
       }
       
@@ -412,6 +426,12 @@ async function handleItemDestroyed(payload: any) {
   const db = admin.firestore();
   const itemData = payload.data;
   
+  // CRITICAL FIX: Check if this is a song item FIRST before doing any processing
+  if (itemData.type !== 'Item' || itemData.attributes?.item_type !== 'song') {
+    console.log('Skipping non-song item destroyed:', itemData.attributes?.item_type);
+    return;
+  }
+  
   const planId = itemData.relationships?.plan?.data?.id;
   
   if (!planId) {
@@ -419,8 +439,7 @@ async function handleItemDestroyed(payload: any) {
     return;
   }
   
-  console.log('Handling item destroyed for plan:', planId);
-  console.log('Item type:', itemData.attributes?.item_type);
+  console.log('Handling song item destroyed for plan:', planId);
   
   // Find the playlist mapping
   const mappings = await db.collection('pc_service_mappings')
@@ -445,16 +464,20 @@ async function handleItemDestroyed(payload: any) {
     // For deletion, we need to rebuild the entire playlist by re-fetching from PC
     // This is because the webhook doesn't tell us which exact hymn was deleted
     try {
-      const connectionDoc = await db.collection('planning_center_connections')
-        .doc(mapping.userId)
+      // CRITICAL FIX: Get connection for access token by querying userId field
+      const connectionSnapshot = await db.collection('planning_center_connections')
+        .where('userId', '==', mapping.userId)
+        .where('active', '==', true)
+        .limit(1)
         .get();
       
-      if (!connectionDoc.exists) {
-        console.log('Connection not found for user:', mapping.userId);
+      if (connectionSnapshot.empty) {
+        console.log('No active connection found for user:', mapping.userId);
         continue;
       }
       
-      const connection = connectionDoc.data()!;
+      const connectionDoc = connectionSnapshot.docs[0];
+      const connection = connectionDoc.data();
       const accessToken = decryptToken(connection.pcToken);
       
       // Parse token for Basic Auth
