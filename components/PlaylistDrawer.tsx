@@ -272,7 +272,12 @@ const PlaylistDrawer: React.FC<PlaylistDrawerProps> = ({
 
       try {
           const code = generateUniqueCode();
-          const adminCode = generateUniqueCode(); // Generate admin code
+          // Generate 8-character admin code
+          const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+          let adminCode = '';
+          for (let i = 0; i < 8; i++) {
+              adminCode += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
           
           await addDoc(collection(db, "organizations"), {
               name: newOrgName.trim(),
@@ -1270,7 +1275,7 @@ const PlaylistDrawer: React.FC<PlaylistDrawerProps> = ({
                                                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                                                 placeholder="ABC123"
                                                 className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none uppercase font-mono placeholder:normal-case placeholder:font-sans"
-                                                maxLength={6}
+                                                maxLength={10}
                                             />
                                             <button 
                                                 onClick={handleJoinOrg}
