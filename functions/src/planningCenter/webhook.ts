@@ -82,7 +82,9 @@ async function fetchServiceItems(planData: any, accessToken: string): Promise<PC
 /**
  * Webhook handler for Planning Center events
  */
-export const planningCenterWebhook = functions.https.onRequest(async (req, res) => {
+export const planningCenterWebhook = functions
+  .runWith({ secrets: ['PC_ENCRYPTION_KEY'] })
+  .https.onRequest(async (req, res) => {
   try {
     console.log('Webhook received:', JSON.stringify(req.body, null, 2));
     

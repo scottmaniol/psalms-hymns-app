@@ -6,7 +6,9 @@ import { encryptToken } from '../utils/encryption';
 /**
  * Callable function to connect Planning Center using Personal Access Token
  */
-export const connectPlanningCenter = functions.https.onCall(async (data, context) => {
+export const connectPlanningCenter = functions
+  .runWith({ secrets: ['PC_ENCRYPTION_KEY'] })
+  .https.onCall(async (data, context) => {
   // Verify user is authenticated
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');

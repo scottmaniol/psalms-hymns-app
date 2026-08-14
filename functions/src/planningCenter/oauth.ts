@@ -11,7 +11,9 @@ const PC_REDIRECT_URI = process.env.PC_REDIRECT_URI;
  * OAuth callback handler for Planning Center
  * Receives authorization code and exchanges it for access tokens
  */
-export const planningCenterOAuthCallback = functions.https.onRequest(async (req, res) => {
+export const planningCenterOAuthCallback = functions
+  .runWith({ secrets: ['PC_ENCRYPTION_KEY'] })
+  .https.onRequest(async (req, res) => {
   try {
     const { code, state } = req.query;
     
@@ -128,7 +130,9 @@ export async function refreshPCToken(userId: string): Promise<string> {
 /**
  * Scheduled function to refresh expiring tokens
  */
-export const refreshExpiringTokens = functions.pubsub.schedule('every 1 hours').onRun(async (context) => {
+export const refreshExpiringTokens = functions
+  .runWith({ secrets: ['PC_ENCRYPTION_KEY'] })
+  .pubsub.schedule('every 1 hours').onRun(async (context) => {
   const db = admin.firestore();
   const oneHourFromNow = admin.firestore.Timestamp.fromDate(new Date(Date.now() + 3600000));
   
