@@ -126,7 +126,10 @@ export default function App() {
   // Split premium sources for proper combination
   const [manualPremium, setManualPremium] = useState(false);
   const [stripePremium, setStripePremium] = useState(false);
-  
+  // Any Stripe subscription the user could still be billed for. Broader than
+  // stripePremium so past_due/unpaid subscribers can still reach the portal to cancel.
+  const [hasBillableSub, setHasBillableSub] = useState(false);
+
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
@@ -377,13 +380,15 @@ export default function App() {
               );
 
               unsubscribeSubs = onSnapshot(subsQuery, (snapshot) => {
-                  // check if ANY subscription has active status
-                  const hasActiveSub = snapshot.docs.some(doc => {
-                      const data = doc.data();
-                      const status = data.status;
-                      return status === 'active' || status === 'trialing';
-                  });
-                  setStripePremium(hasActiveSub);
+                  const statuses = snapshot.docs.map(doc => doc.data().status);
+
+                  // Grants premium access
+                  setStripePremium(statuses.some(s => s === 'active' || s === 'trialing'));
+
+                  // Still attached to a payment method, so it must stay cancelable
+                  setHasBillableSub(statuses.some(s =>
+                      s === 'active' || s === 'trialing' || s === 'past_due' || s === 'unpaid'
+                  ));
               }, (err) => {
                   console.error("Subscription sync error:", err);
               });
@@ -398,6 +403,7 @@ export default function App() {
           setIsAdmin(false);
           setManualPremium(false);
           setStripePremium(false);
+          setHasBillableSub(false);
       }
     });
 
@@ -1348,6 +1354,7 @@ export default function App() {
                   onLogoutClick={() => signOut(auth)}
                   isPremium={isPremium}
                   onOpenPremium={() => setIsPremiumModalOpen(true)}
+                  hasStripeSubscription={hasBillableSub}
                 />
             </div>
           </div>

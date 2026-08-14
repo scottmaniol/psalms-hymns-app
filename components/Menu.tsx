@@ -1,7 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MoreVertical, ShoppingCart, Info, Download, Library, Heart, MessageSquare, LogIn, LogOut, User, Share2, Shield, Crown, Check, Calendar } from 'lucide-react';
+import { MoreVertical, ShoppingCart, Info, Download, Library, Heart, MessageSquare, LogIn, LogOut, User, Share2, Shield, Crown, Check, Calendar, CreditCard, Loader2, AlertCircle } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../firebase';
+
+// Deployed by the "Run Payments with Stripe" extension (instance id: firestore-stripe-payments)
+// in us-central1, which is the default region for our `functions` instance.
+const PORTAL_LINK_FUNCTION = 'ext-firestore-stripe-payments-createPortalLink';
 
 interface MenuProps {
   onOpenAbout: () => void;
@@ -19,6 +25,9 @@ interface MenuProps {
   onLogoutClick: () => void;
   isPremium?: boolean;
   onOpenPremium?: () => void;
+  // True only when premium comes from a real Stripe subscription. Admin-granted
+  // premium has nothing to manage in the billing portal, so we hide the button.
+  hasStripeSubscription?: boolean;
 }
 
 const Menu: React.FC<MenuProps> = ({ 
@@ -36,10 +45,13 @@ const Menu: React.FC<MenuProps> = ({
   onAuthClick,
   onLogoutClick,
   isPremium = false,
-  onOpenPremium
+  onOpenPremium,
+  hasStripeSubscription = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,6 +59,7 @@ const Menu: React.FC<MenuProps> = ({
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsOpen(false);
         setCopySuccess(false);
+        setPortalError(null);
       }
     };
 
@@ -57,6 +70,29 @@ const Menu: React.FC<MenuProps> = ({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
+
+  const handleManageSubscription = async () => {
+    setPortalError(null);
+    setPortalLoading(true);
+
+    try {
+      const createPortalLink = httpsCallable<
+        { returnUrl: string },
+        { url: string }
+      >(functions, PORTAL_LINK_FUNCTION);
+
+      const { data } = await createPortalLink({ returnUrl: window.location.origin });
+
+      if (!data?.url) throw new Error('No portal URL returned');
+
+      // Leaving the app for Stripe, so no need to clear the loading state.
+      window.location.assign(data.url);
+    } catch (err: any) {
+      console.error('Billing portal error:', err);
+      setPortalError("We couldn't open the billing portal. Use Contact below and we'll cancel it for you right away.");
+      setPortalLoading(false);
+    }
+  };
 
   const handleShareApp = async () => {
     const shareData = {
@@ -128,6 +164,35 @@ const Menu: React.FC<MenuProps> = ({
                         >
                             <Crown size={14} fill="currentColor" /> Upgrade to Premium
                         </button>
+                    )}
+
+                    {hasStripeSubscription && (
+                        <>
+                            <button
+                                onClick={handleManageSubscription}
+                                disabled={portalLoading}
+                                className="w-full bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors border border-slate-300 shadow-sm my-1 disabled:opacity-70 disabled:cursor-not-allowed"
+                            >
+                                {portalLoading ? (
+                                    <>
+                                        <Loader2 size={14} className="animate-spin" /> Opening…
+                                    </>
+                                ) : (
+                                    <>
+                                        <CreditCard size={14} /> Manage Subscription
+                                    </>
+                                )}
+                            </button>
+                            <p className="text-[10px] text-slate-400 leading-snug -mt-0.5">
+                                Update your card or cancel anytime.
+                            </p>
+                            {portalError && (
+                                <div className="p-2 bg-red-50 border border-red-100 rounded-lg flex items-start gap-1.5">
+                                    <AlertCircle size={12} className="text-red-500 shrink-0 mt-0.5" />
+                                    <p className="text-[10px] text-red-700 leading-relaxed font-medium">{portalError}</p>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     <button
