@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "start": "http-server dist -p 8080 --proxy http://localhost:8080?",
-    "deploy": "gcloud builds submit --tag gcr.io/psalms-and-hymns-85ee4/app . && gcloud run deploy psalms-hymns-to-the-living-god --image gcr.io/psalms-and-hymns-85ee4/app --region us-west1 --platform managed --allow-unauthenticated"
+    "deploy": "npm run build && firebase deploy --only hosting"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
