@@ -45,6 +45,7 @@ import VoicePartMixer, { VoicePartMixerControls } from './components/VoicePartMi
 import StartingPitchButton from './components/StartingPitchButton';
 import audioManager from './utils/audioManager';
 import { parseHymnalData } from './utils';
+import { fetchVocalTrackNumbers } from './utils/vocalManifest';
 import { Song, ViewMode, SortOrder, TabMode, PlaylistItem, PlayMode, SavedPlaylist, RichDataEntry, Organization, SubscriptionInfo } from './types';
 import * as Tone from 'tone';
 import { APP_VERSION, RELEASE_NOTES, BUY_HYMNAL_URL, DONATE_URL } from './config';
@@ -142,7 +143,11 @@ export default function App() {
   // --- AUDIO AVAILABILITY STATE ---
   // Cache availability checks: songNumber -> true (exists) / false (404)
   const [vocalAvailability, setVocalAvailability] = useState<Record<string, boolean>>({});
-  // Queue references for batch processing
+  // One listing of the vocal/ folder answers this for every song. Per-song
+  // probing is only used if that listing can't be fetched.
+  const [vocalListing, setVocalListing] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [vocalTrackSet, setVocalTrackSet] = useState<Set<string> | null>(null);
+  // Queue references for batch processing (fallback path only)
   const checkQueueRef = useRef<string[]>([]);
   const processingRef = useRef(false);
 
@@ -858,7 +863,46 @@ export default function App() {
     processingRef.current = false;
   };
 
+  // Fetch the vocal/ listing exactly once. hymnalData is rebuilt as the lyrics
+  // files arrive, so the mapping below is kept in a separate effect to avoid
+  // re-requesting the listing each time.
   useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const withTracks = await fetchVocalTrackNumbers();
+      if (cancelled) return;
+
+      if (withTracks) {
+        setVocalTrackSet(withTracks);
+        setVocalListing('ready');
+      } else {
+        setVocalListing('failed');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Apply the listing to whatever songs are currently loaded.
+  useEffect(() => {
+    if (!vocalTrackSet || hymnalData.length === 0) return;
+
+    const resolved: Record<string, boolean> = {};
+    hymnalData.forEach(song => {
+      if (song.vocalUrl) resolved[song.number] = vocalTrackSet.has(song.number);
+    });
+
+    // The listing is authoritative, so it wins over anything already probed.
+    setVocalAvailability(prev => ({ ...prev, ...resolved }));
+  }, [hymnalData, vocalTrackSet]);
+
+  // Fallback: if the listing failed, go back to checking songs one at a time.
+  useEffect(() => {
+    if (vocalListing !== 'failed') return;
+
     const unknowns = filteredSongs
       .filter(s => s.vocalUrl && vocalAvailability[s.number] === undefined)
       .map(s => s.number);
@@ -870,7 +914,7 @@ export default function App() {
         processQueue();
       }
     }
-  }, [filteredSongs, vocalAvailability, hymnalData]);
+  }, [filteredSongs, vocalAvailability, hymnalData, vocalListing]);
 
 
   // Audio Control Effect - Only handles pause/resume, NOT initial playback
