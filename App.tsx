@@ -37,6 +37,7 @@ import InstallInstructionsModal from './components/InstallInstructionsModal';
 import AuthModal from './components/AuthModal';
 import AdminDashboard from './components/AdminDashboard';
 import PremiumModal from './components/PremiumModal';
+import AccountModal from './components/AccountModal';
 import ServicePlanner from './components/ServicePlanner';
 import ServiceViewer from './components/ServiceViewer';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -44,7 +45,7 @@ import VoicePartMixer, { VoicePartMixerControls } from './components/VoicePartMi
 import StartingPitchButton from './components/StartingPitchButton';
 import audioManager from './utils/audioManager';
 import { parseHymnalData } from './utils';
-import { Song, ViewMode, SortOrder, TabMode, PlaylistItem, PlayMode, SavedPlaylist, RichDataEntry, Organization } from './types';
+import { Song, ViewMode, SortOrder, TabMode, PlaylistItem, PlayMode, SavedPlaylist, RichDataEntry, Organization, SubscriptionInfo } from './types';
 import * as Tone from 'tone';
 import { APP_VERSION, RELEASE_NOTES, BUY_HYMNAL_URL, DONATE_URL } from './config';
 import { HYMN_THEMES } from './hymnThemes';
@@ -129,10 +130,13 @@ export default function App() {
   // Any Stripe subscription the user could still be billed for. Broader than
   // stripePremium so past_due/unpaid subscribers can still reach the portal to cancel.
   const [hasBillableSub, setHasBillableSub] = useState(false);
+  // Detail of that subscription, for the account screen.
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
 
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState(false);
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
+  const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isServicePlannerOpen, setIsServicePlannerOpen] = useState(false);
 
   // --- AUDIO AVAILABILITY STATE ---
@@ -386,9 +390,31 @@ export default function App() {
                   setStripePremium(statuses.some(s => s === 'active' || s === 'trialing'));
 
                   // Still attached to a payment method, so it must stay cancelable
-                  setHasBillableSub(statuses.some(s =>
-                      s === 'active' || s === 'trialing' || s === 'past_due' || s === 'unpaid'
-                  ));
+                  const billable = ['active', 'trialing', 'past_due', 'unpaid'];
+                  setHasBillableSub(statuses.some(s => billable.includes(s)));
+
+                  // Surface the billable subscription (if any) for the account screen.
+                  // Prefer the one granting access, then any other still-billable one.
+                  const pick =
+                      snapshot.docs.find(d => ['active', 'trialing'].includes(d.data().status)) ||
+                      snapshot.docs.find(d => billable.includes(d.data().status));
+
+                  if (!pick) {
+                      setSubscription(null);
+                  } else {
+                      const data = pick.data() as any;
+                      const price = data.items?.[0]?.price;
+                      setSubscription({
+                          id: pick.id,
+                          status: data.status,
+                          cancelAtPeriodEnd: data.cancel_at_period_end === true,
+                          currentPeriodEnd: data.current_period_end?.toDate?.() ?? null,
+                          created: data.created?.toDate?.() ?? null,
+                          unitAmount: typeof price?.unit_amount === 'number' ? price.unit_amount : null,
+                          currency: price?.currency ?? null,
+                          interval: price?.recurring?.interval ?? null,
+                      });
+                  }
               }, (err) => {
                   console.error("Subscription sync error:", err);
               });
@@ -404,6 +430,7 @@ export default function App() {
           setManualPremium(false);
           setStripePremium(false);
           setHasBillableSub(false);
+          setSubscription(null);
       }
     });
 
@@ -1354,7 +1381,7 @@ export default function App() {
                   onLogoutClick={() => signOut(auth)}
                   isPremium={isPremium}
                   onOpenPremium={() => setIsPremiumModalOpen(true)}
-                  hasStripeSubscription={hasBillableSub}
+                  onOpenAccount={() => setIsAccountOpen(true)}
                 />
             </div>
           </div>
@@ -2106,13 +2133,22 @@ export default function App() {
         songData={hymnalData}
       />
 
-      <PremiumModal 
-        isOpen={isPremiumModalOpen} 
+      <PremiumModal
+        isOpen={isPremiumModalOpen}
         onClose={() => setIsPremiumModalOpen(false)}
         onLogin={() => {
             setIsPremiumModalOpen(false);
             setIsAuthOpen(true);
         }}
+      />
+
+      <AccountModal
+        isOpen={isAccountOpen}
+        onClose={() => setIsAccountOpen(false)}
+        user={user}
+        isPremium={isPremium}
+        subscription={subscription}
+        onOpenPremium={() => setIsPremiumModalOpen(true)}
       />
 
       <AboutModal 

@@ -78,6 +78,19 @@ export interface UserProfile {
   lastLoginAt?: any;
 }
 
+// Flattened view of a Stripe subscription doc from the payments extension
+// (customers/{uid}/subscriptions/{id}), for display on the account screen.
+export interface SubscriptionInfo {
+  id: string;
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd: Date | null;
+  created: Date | null;
+  unitAmount: number | null; // in cents
+  currency: string | null;
+  interval: string | null;
+}
+
 export type SortOrder = 'number' | 'alpha_asc' | 'alpha_desc';
 export type ViewMode = 'list' | 'detail';
 export type TabMode = 'lyrics' | 'score' | 'audio';
