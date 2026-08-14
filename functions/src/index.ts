@@ -8,6 +8,11 @@ export {
   connectPlanningCenter 
 } from './planningCenter/connectToken';
 
-export { 
-  planningCenterWebhook 
+export {
+  planningCenterWebhook
 } from './planningCenter/webhook';
+
+export {
+  getAccountDeletionPreview,
+  deleteAccount
+} from './account/deleteAccount';

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Crown, CreditCard, Loader2, AlertCircle, CheckCircle, KeyRound, Mail, Calendar, Star, Gift } from 'lucide-react';
-import { User as FirebaseUser, sendPasswordResetEmail } from 'firebase/auth';
+import { X, Crown, CreditCard, Loader2, AlertCircle, CheckCircle, KeyRound, Mail, Calendar, Star, Gift, Trash2, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { User as FirebaseUser, sendPasswordResetEmail, signOut } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from '../firebase';
 import { SubscriptionInfo } from '../types';
@@ -9,6 +9,19 @@ import { SubscriptionInfo } from '../types';
 // Deployed by the "Run Payments with Stripe" extension (instance id: firestore-stripe-payments)
 // in us-central1, which is the default region for our `functions` instance.
 const PORTAL_LINK_FUNCTION = 'ext-firestore-stripe-payments-createPortalLink';
+
+interface DeletionPreview {
+  canDelete: boolean;
+  blockers: { code: string; message: string }[];
+  playlistsToDelete: number;
+  organizations: { name: string; action: 'delete' | 'transfer' | 'leave' }[];
+}
+
+const ORG_ACTION_COPY: Record<string, string> = {
+  delete: 'will be deleted, along with its playlists and services',
+  transfer: 'will be handed over to another admin',
+  leave: "you'll be removed as a member",
+};
 
 interface AccountModalProps {
   isOpen: boolean;
@@ -45,12 +58,24 @@ const AccountModal: React.FC<AccountModalProps> = ({
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
 
+  // Deletion is a two-step flow: fetch a preview of the consequences, then confirm.
+  const [deleteStage, setDeleteStage] = useState<'idle' | 'confirm'>('idle');
+  const [preview, setPreview] = useState<DeletionPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
   // Clear transient state when reopened
   useEffect(() => {
     if (isOpen) {
       setPortalError(null);
       setResetSent(false);
       setResetError(null);
+      setDeleteStage('idle');
+      setPreview(null);
+      setDeleteError(null);
+      setConfirmText('');
     }
   }, [isOpen]);
 
@@ -98,6 +123,44 @@ const AccountModal: React.FC<AccountModalProps> = ({
       setResetError('Could not send the reset email. Please try again.');
     } finally {
       setResetLoading(false);
+    }
+  };
+
+  const handleStartDeletion = async () => {
+    setDeleteError(null);
+    setPreviewLoading(true);
+
+    try {
+      const getPreview = httpsCallable<unknown, DeletionPreview>(
+        functions,
+        'getAccountDeletionPreview'
+      );
+      const { data } = await getPreview({});
+      setPreview(data);
+      setDeleteStage('confirm');
+    } catch (err: any) {
+      console.error('Deletion preview error:', err);
+      setDeleteError("We couldn't check your account just now. Please try again.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleConfirmDeletion = async () => {
+    setDeleteError(null);
+    setDeleting(true);
+
+    try {
+      const doDelete = httpsCallable<unknown, { success: boolean }>(functions, 'deleteAccount');
+      await doDelete({});
+
+      // The account is gone; drop the now-invalid session and start fresh.
+      await signOut(auth).catch(() => undefined);
+      window.location.assign(window.location.origin);
+    } catch (err: any) {
+      console.error('Account deletion error:', err);
+      setDeleteError(err?.message || 'Something went wrong. Your account has not been deleted.');
+      setDeleting(false);
     }
   };
 
@@ -336,6 +399,138 @@ const AccountModal: React.FC<AccountModalProps> = ({
                 <p className="text-xs text-slate-500 leading-relaxed">
                   You sign in with Google, so your password is managed in your Google Account.
                 </p>
+              )}
+            </div>
+          </section>
+
+          {/* --- Delete account --- */}
+          <section className="mt-6">
+            <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2">
+              Delete account
+            </h3>
+            <div className="rounded-xl border border-red-100 bg-red-50/40 p-4">
+              {deleteStage === 'idle' ? (
+                <>
+                  <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                    Permanently delete your account and your personal playlists. This can't be
+                    undone.
+                  </p>
+                  {deleteError && (
+                    <div className="mb-3 p-3 rounded-lg border border-red-100 bg-red-50 flex items-start gap-2">
+                      <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-700 leading-relaxed font-medium">{deleteError}</p>
+                    </div>
+                  )}
+                  <button
+                    onClick={handleStartDeletion}
+                    disabled={previewLoading}
+                    className="w-full bg-white hover:bg-red-50 text-red-600 text-sm font-semibold py-2.5 px-4 rounded-xl border border-red-200 flex items-center justify-center gap-2 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {previewLoading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" /> Checking…
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 size={16} /> Delete my account
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Blocked: something else depends on this account */}
+                  {preview && !preview.canDelete ? (
+                    <>
+                      <div className="flex items-start gap-2 mb-3">
+                        <ShieldAlert size={16} className="text-red-500 shrink-0 mt-0.5" />
+                        <p className="text-xs font-bold text-red-800">
+                          We can't delete your account yet
+                        </p>
+                      </div>
+                      <ul className="space-y-2 mb-3">
+                        {preview.blockers.map((b, i) => (
+                          <li
+                            key={i}
+                            className="text-xs text-red-700 leading-relaxed bg-white border border-red-100 rounded-lg p-3"
+                          >
+                            {b.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs font-bold text-red-800 mb-2">
+                        This will permanently delete your account.
+                      </p>
+                      <ul className="text-xs text-slate-700 leading-relaxed list-disc pl-4 space-y-1 mb-3">
+                        {preview && preview.playlistsToDelete > 0 && (
+                          <li>
+                            {preview.playlistsToDelete} personal playlist
+                            {preview.playlistsToDelete === 1 ? '' : 's'} will be deleted
+                          </li>
+                        )}
+                        {preview?.organizations.map((o, i) => (
+                          <li key={i}>
+                            <span className="font-semibold">{o.name}</span>{' '}
+                            {ORG_ACTION_COPY[o.action] || o.action}
+                          </li>
+                        ))}
+                        <li>Your sign-in and profile will be removed</li>
+                      </ul>
+
+                      <label className="block text-xs text-slate-600 mb-1.5">
+                        Type <span className="font-mono font-bold">{user.email}</span> to confirm:
+                      </label>
+                      <input
+                        type="text"
+                        value={confirmText}
+                        onChange={e => setConfirmText(e.target.value)}
+                        autoComplete="off"
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-red-200 focus:border-red-300"
+                      />
+                    </>
+                  )}
+
+                  {deleteError && (
+                    <div className="mb-3 p-3 rounded-lg border border-red-100 bg-red-50 flex items-start gap-2">
+                      <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
+                      <p className="text-xs text-red-700 leading-relaxed font-medium">{deleteError}</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setDeleteStage('idle');
+                        setConfirmText('');
+                        setDeleteError(null);
+                      }}
+                      disabled={deleting}
+                      className="flex-1 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold py-2.5 px-3 rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 transition-colors disabled:opacity-70"
+                    >
+                      <ArrowLeft size={15} /> Back
+                    </button>
+                    {preview?.canDelete && (
+                      <button
+                        onClick={handleConfirmDeletion}
+                        disabled={deleting || confirmText.trim() !== user.email}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-bold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {deleting ? (
+                          <>
+                            <Loader2 size={15} className="animate-spin" /> Deleting…
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 size={15} /> Delete forever
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </section>
